@@ -1,0 +1,164 @@
+---
+title: "Week 5 Assignment"
+author: "Tommy Klein"
+date: "3/1/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+### Working Directory
+```{r wd}
+
+setwd('/Users/tklein/Desktop/Desktop_tpk/JHU_Classes/text_as_data/week5')
+
+
+```
+
+### Library
+
+```{r libs}
+
+library(ndjson)
+source('../functions/helper_functions.R')
+
+```
+
+
+
+
+# Part 1 - Course Project
+
+  For the course project I am going to analyze social media posts that discuss crypto. My friend started a crypto company (Centsy), and is beginning to market it on social media. However, he has no insights about current landscape of crypto on social media - for example, what topics are typically discussed, and what kinds of tweets typically receive the most engagement. Having these insights would help him craft a more effective social media strategy, that can maximize his message. 
+  I plan to collect posts on Reddit using the RedditExtractoR package. I will collect posts from popular crypto communities on Reddit to ensure that I'm selecting relevant content. Once I have collected the posts, I will use a variety of methods to prepare the text for analysis, such as using regex to clean the text and remove unneeded symbols/words, and sentiment analysis to enrich the text with more data. At this point I would like to do one of two things, perhaps both: I would like to use an unsupervised learning method that can identify latent groups within the Reddit posts, and I would like to use a supervised learning method that determines which words, phrases, topics, and sentiments are associated with increased engagement (comments and posts on Reddit). 
+  
+  I think both analyses are helpful for my purpose (improving Centy's social media content). The unsupervised method would shed light on types of posts based on the language, sentiment, and topics that they use, but can also form groups based on the engagement it receives. This analysis should provide Centsy a blue-print for types of social media content to create that ensures that it "fits" in the current landscape, and that it is maximally effective at generating engagement. The superivised analysis would more directly answer the question about what kind of content drives engagement. This analysis should provide some certain words, phrases, sentiments, and or topics that Centsy can use to maximize engagement. Either or both of these analyses could directly shape and improve Centsy's social media strategy. 
+  
+
+## Literature Review
+
+1. Flora Poecze, Claus Ebster, Christine Strauss,
+Social media metrics and sentiment analysis to evaluate the effectiveness of social media posts,
+Procedia Computer Science,
+Volume 130,
+2018,
+Pages 660-666,
+ISSN 1877-0509,
+https://doi.org/10.1016/j.procs.2018.04.117.
+
+
+2. Heuiju Chun, Byung-Hak Leem, Hyesun Suh
+Using text analytics to measure an effect of topics and sentiments on social-media engagement: Focusing on Facebook fan page of Toyota,
+International Journal of Engineering Business Management
+Volume 13, 
+2021,
+https://journals.sagepub.com/doi/full/10.1177/18479790211016268#
+
+
+3. Trunfio, Mariapina and Rossi, Simona 
+Conceptualising and measuring social media engagement: A systematic literature review (article)
+Italian Journal of Marketing
+2021 - 3
+2021
+Pages
+267--292
+Isbn 2662-3331
+https://doi.org/10.1007/s43039-021-00035-8
+
+
+
+# Part 2 - 
+
+
+## Question 1 
+
+```{r read nuclear tweets }
+
+nuke_tweets <- readtext(file = 'sentiment_nuclear_power _1_.csv')
+
+
+
+```
+
+
+
+```{r mention japan}
+
+
+grep(pattern = '([jJ][aA][pP][Aa][nN]\\s)', nuke_tweets$text)
+
+
+nuke_tweets[grep(pattern = '([jJ][aA][pP][Aa][nN]\\s)', nuke_tweets$text), 'text']
+
+```
+
+
+
+## Question 2
+
+
+```{r remove hashtags and handles}
+
+nuke_tweets$edited_text <- gsub(pattern = '#\\w*', x = nuke_tweets$text, replacement = '', )
+
+nuke_tweets$edited_text <-gsub(pattern = '@\\w*', x = nuke_tweets$edited_text, replacement = '')
+
+nuke_tweets$edited_text[grepl(pattern = '#\\w*', x = nuke_tweets$text) |
+                          grepl(pattern = '@\\w*', x = nuke_tweets$text)][1:20]
+
+
+```
+
+
+
+
+## Question 3 
+
+```{r read in json}
+
+instruments <- ndjson::stream_in('Musical_Instruments_5_SSN.json')
+
+
+
+
+
+
+```
+
+
+```{r investigation }
+
+instruments[grepl(pattern = '\\d\\d\\d-\\d\\d-\\d\\d\\d\\d', x = instruments$reviewText)]$reviewText
+
+instruments[grepl(pattern = '\\d\\d\\d\\d\\d\\d\\d\\d\\d', x = instruments$reviewText)]$reviewText
+
+instruments[grepl(pattern = 'SSN', x = instruments$reviewText)]$reviewText
+
+instruments[grepl(pattern = 'social', x = instruments$reviewText)]$reviewText
+
+```
+
+
+
+Looks like there are some dashed and non-dashed SSNs. Also, if I just do the non-dash, I might accidentally remove digits from hyperlinks. Maybe if I enforce that there must be a space before and after that will help
+
+```{r ssn removal}
+
+instruments$edited_review <- gsub(pattern = '\\s\\d{9}', x = instruments$reviewText, replacement = ' ', )
+
+instruments$edited_review <- gsub(pattern = '\\s\\d{3}-\\d{2}-\\d{4}', x = instruments$edited_review, replacement = ' ', )
+
+
+instruments[
+  grepl(pattern = '\\s\\d{9}', x = instruments$reviewText) | 
+    grepl(pattern = '\\s\\d{3}-\\d{2}-\\d{4}', x = instruments$reviewText)
+    ]$edited_review
+
+
+```
+
+
+

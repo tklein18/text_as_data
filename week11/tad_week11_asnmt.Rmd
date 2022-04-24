@@ -1,0 +1,261 @@
+---
+title: "TAD Week 10 Assignment"
+author: "Tommy Klein"
+date: "4/12/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Working Directory
+```{r wd}
+
+setwd('/Users/tklein/Desktop/Desktop_tpk/JHU_Classes/text_as_data/week11')
+
+
+```
+
+### Library
+
+```{r libs}
+
+library(ndjson)
+library(SentimentAnalysis)
+library(RedditExtractoR)
+library(tidyverse)
+library(topicmodels)
+library(stm)
+library(tidytext)
+source('../functions/helper_functions.R')
+library(e1071)
+library(caret)
+library(cluster)
+library(factoextra)
+library(quanteda)
+library(dbscan)
+```
+
+
+
+
+
+
+
+
+# Reading in data
+
+I collected thousands of reddit posts from multiple different sub-reddits: r/Bitcoin, r/Ethereum, r/CryptoCurrency, r/BitcoinBegginers, and r/Coinbase. I'm going to use a naive-bayes model to see if I can predict which sub-reddit a post was posted in based on the text used in the post. 
+
+
+```{r read data}
+
+reddit_data <- read_csv('../getting_reddit_data/updated_posts_with_text.csv')
+
+reddit_data %>% glimpse()
+
+reddit_corpus <- csv_to_corpus(
+  '../getting_reddit_data/updated_posts_with_text.csv', 
+  text_col = 'body' 
+  )
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+# DBscan
+
+
+```{r nb}
+
+
+reddit_data$subreddit = factor(reddit_data$subreddit)
+
+reddit_dfm <- corp_to_dfm(reddit_corpus)
+
+reddit_dfm_trimmed <- reddit_dfm %>% quanteda::dfm_trim(
+  max_termfreg = .8, termfreq_type = 'prop',
+  min_docfreq = 20, docfreq_type = 'count'
+  )
+
+reddit_dfm_matrix <- as.matrix(reddit_dfm_trimmed)
+
+reddit_dfm_matrix[is.nan(reddit_dfm_matrix)] = 0
+
+
+dbscan_reddit = dbscan::dbscan(x=reddit_dfm_matrix,
+                                eps=1, # Gues at initial eps value
+                                minPts = 5) # minimum number of data points per cluster
+dbscan_reddit
+
+```
+
+
+
+DBscan creates 6 clusters, which are all relatively tiny compared to the number of noise points - the largest cluster has only 73 documents, while there are 5,158 noise points.
+
+
+```{r}
+
+reddit_data$dbscan_cluster <- dbscan_reddit$cluster
+
+
+reddit_data %>% 
+  filter(dbscan_cluster !=0) %>%
+  group_by(dbscan_cluster) %>% 
+  mutate(rank = rank(dbscan_cluster, ties.method = 'first')) %>% 
+  filter(rank < 5) %>% 
+  select(dbscan_cluster, body) %>% 
+  arrange(dbscan_cluster)
+
+```
+
+The clusters do seem to be similar, so that is good. The bad new is that none of them seem to be a "typical" post - e.g. one cluster is just a weekly discussion thread in one of the subreddits. 
+
+
+
+```{r}
+
+kNNdistplot(reddit_dfm_matrix, k =  5)+abline(h = 20, lty = 2)
+
+```
+
+Looks like somewhere around 20. 
+
+
+```{r}
+
+dbscan_reddit = dbscan::dbscan(x=reddit_dfm_matrix,
+                                eps=20, # Gues at initial eps value
+                                minPts = 5) # minimum number of data points per cluster
+dbscan_reddit
+
+```
+
+So this model reduces the noise points, but ends up creating only two clusters, which really isn't better. 
+
+
+
+
+# Hierarchical Cluster
+
+
+```{r}
+
+hierarchical_reddit <- hclust(dist(reddit_dfm_matrix,method='euclidian'),
+                               method = "complete" )
+
+
+```
+
+
+```{r}
+
+hierarchical_reddit
+
+```
+
+
+```{r}
+
+plot(hierarchical_reddit, cex = 0.6, hang = -1)
+
+```
+
+
+
+
+```{r}
+
+
+
+
+reddit_data$hier_cluster <- cutree(hierarchical_reddit, h=75)
+
+
+reddit_data %>% 
+  group_by(hier_cluster) %>% 
+  mutate(rank = rank(hier_cluster, ties.method = 'first')) %>% 
+  filter(rank < 5) %>% 
+  select(hier_cluster, body) %>% 
+  arrange(hier_cluster)
+
+
+
+
+reddit_data %>% 
+  group_by(hier_cluster) %>% 
+  summarize(count = n())
+
+```
+
+
+
+Like the other clustering algorithms, most of the documents went into one cluster. 
+
+
+
+```{r}
+
+hierarchical_reddit <- hclust(dist(reddit_dfm_matrix,method='euclidian'),
+                               method = "average" )
+
+plot(hierarchical_reddit, cex = 0.6, hang = -1)
+
+reddit_data$hier_cluster <- cutree(hierarchical_reddit, h=75)
+
+reddit_data %>% 
+  group_by(hier_cluster) %>% 
+  summarize(count = n())
+
+```
+
+
+
+
+```{r}
+
+hierarchical_reddit <- hclust(dist(reddit_dfm_matrix,method='euclidian'),
+                               method = "single" )
+
+plot(hierarchical_reddit, cex = 0.6, hang = -1)
+
+reddit_data$hier_cluster <- cutree(hierarchical_reddit, h=75)
+
+reddit_data %>% 
+  group_by(hier_cluster) %>% 
+  summarize(count = n())
+
+```
+
+
+
+
+
+```{r}
+
+
+hierarchical_reddit <- hclust(dist(reddit_dfm_matrix,method='euclidian'),
+                               method = "median" )
+
+plot(hierarchical_reddit, cex = 0.6, hang = -1)
+
+
+
+```
+
+
+
+
+

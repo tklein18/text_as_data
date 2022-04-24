@@ -1,0 +1,212 @@
+---
+title: "TAD Week 7 Assignment"
+author: "Tommy Klein"
+date: "3/16/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Working Directory
+```{r wd}
+
+setwd('/Users/tklein/Desktop/Desktop_tpk/JHU_Classes/text_as_data/week7')
+
+
+```
+
+### Library
+
+```{r libs}
+
+library(ndjson)
+library(SentimentAnalysis)
+library(RedditExtractoR)
+library(tidyverse)
+library(topicmodels)
+library(stm)
+library(tidytext)
+source('../functions/helper_functions.R')
+
+```
+
+
+
+
+# Question 1
+
+Topic models define a document as a mixture of different topics. The number of topics are defined by the user, but model defins each topic as a bag of words. The model determines what words are associated with each topic by analyzing the frequency of words. The topic model uses the bag of words that it determines represents each topic to determine what topics are in each document. This approach is useful for exploring documents and answering questions where the set of topics is unknown, because the model will define topics and classify documents for you. For example, you could use topic modeling to analyze hotel reviews to determine what topics are associated with positive or negative reviews. 
+
+Topic modeling is not well suited to every question. Topic models require you to define how many topics are in the document, so if you don't have a good grasp of what that number should be you could get poor results. Additionally, the topics as defined by the topic model aren't necessarily interpretable. The model will not be able to tell you if a blog post was discussing politics or fashion, all it can do is determine how correlated each blog post is with a set of words determined by model. This means that the model may not be ideal for exploring documents that the user is completely unfamiliar with. 
+
+
+
+
+
+# Question 2
+
+```{r loading data}
+
+crypto_threads_df <- read_csv('reddit_crypto_threads.csv') %>% select(-X1)
+
+crypto_threads <- csv_to_corpus('reddit_crypto_threads.csv', 'text')
+
+
+crypto_dfm <- corp_to_dfm(crypto_threads, stem = T)
+
+crypto_dfm_trimmed <- dfm_trim(crypto_dfm, min_count = 1, max_count = .9)
+
+
+# need to remove threads that dont have any text 
+
+
+crypto_dfm_trimmed <- crypto_dfm_trimmed[apply(crypto_dfm_trimmed, 1, sum) > 0,]
+
+crypto_threads_df_with_text <- crypto_threads_df[apply(crypto_dfm, 1, sum) > 0,]
+
+
+colnames(crypto_dfm_trimmed)[1:20]
+
+```
+
+
+
+
+```{r applying lda 10}
+
+lda_ten <- LDA(crypto_dfm_trimmed, 10, method = "VEM")
+
+lda_ten_topics <- topics(lda_ten)
+hist(lda_ten_topics, breaks = 10)
+terms(lda_ten, 10)
+
+lda_ten_props <- lda_ten@gamma
+
+lda_ten_props[1:3, ]
+
+lda_ten_props_df <- bind_cols(crypto_threads_df_with_text, data.frame(lda_ten_props))
+
+
+lm(score ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9, data = lda_ten_props_df) %>% summary()
+
+
+```
+
+
+
+
+```{r applying lda 5}
+
+lda_five <- LDA(crypto_dfm_trimmed, 5, method = "VEM")
+
+lda_five_topics <- topics(lda_five)
+hist(lda_five_topics, breaks = 5)
+terms(lda_five, 10)
+
+
+
+lda_five_props <- lda_five@gamma
+
+lda_five_props[1:3, ]
+
+lda_five_props_df <- bind_cols(crypto_threads_df_with_text, data.frame(lda_five_props))
+
+
+lm(score ~ X1 + X2 + X3 + X4, data = lda_five_props_df) %>% summary()
+
+```
+
+
+
+
+
+```{r applying lda 15}
+
+lda_fifteen <- LDA(crypto_dfm_trimmed, 15, method = "VEM")
+
+lda_fifteen_topics <- topics(lda_fifteen)
+hist(lda_fifteen_topics, breaks = 15)
+terms(lda_fifteen, 10)
+
+
+lda_fifteen_props <- lda_fifteen@gamma
+
+lda_fifteen_props[1:3, ]
+
+lda_fifteen_props_df <- bind_cols(crypto_threads_df_with_text, data.frame(lda_fifteen_props))
+
+
+lm(score ~ X1 + X2 + X3 + X4 + X5 + X6 + X7 + X8 + X9 + X10 + X11 + X12 + X13 + X14, data = lda_fifteen_props_df) %>% summary()
+
+
+```
+
+
+
+The different values of values of K seemed pretty similar - there were of course more topics, but all of the topics seemed very similar. They almost all featured the word encrypt or crypt-. This would seem to indicate that I should use a smaller set of topics so that the ones that I end up with are more distinct from each-other. 
+
+
+
+
+# Question 3
+
+
+
+```{r lda three}
+
+lda_three <- LDA(crypto_dfm_trimmed, 3, method = "VEM")
+
+lda_three_topics <- topics(lda_three)
+hist(lda_three_topics, breaks = 10)
+terms(lda_three, 15)
+
+lda_three_props <- lda_three@gamma
+
+lda_three_props[1:3, ]
+
+lda_three_props_df <- bind_cols(crypto_threads_df_with_text, data.frame(lda_three_props))
+
+
+lm(score ~ X1 + X2, data = lda_three_props_df) %>% summary()
+```
+
+
+
+```{r}
+
+lda_three_props_df %>% 
+  ggplot(aes(X1, score))+
+  geom_point()
+
+
+```
+
+
+```{r}
+
+lda_three %>%
+  tidy() %>% 
+  filter(topic == 1) %>% 
+  arrange(desc(beta)) %>% 
+  head(15)
+
+```
+
+
+
+I chose a value of 3 for K because I believe that my documents are all discussing similar topics. Because my documents are all posts in the crypto sub-reddit, it is highly likely that they are discussing the same, if not very similar, topics. Due to this, selecting a higher value of K would mean that the bag of words that comprise each topic would likely overlap quite a bit. After viewing the results of the LDA model with a K value of 15, 10, and 5, it was made that this was the case - that the words in each topic overlapped quite a bit. 
+
+I used the results of the topic model in a linear regression on the scores of each post. The results did not explain very much of the variance in the data (the model had an R-squared of only .03), but the coefficient on the 1st topic was statistically significant that the 1% level. This would indicate that posts that wholly categorized as topic 1 received on average 12 more upvotes than downvotes on Reddit. Practically, what this means is that were Centsy to post on Reddit, they should try to have their post fit in to topic 1, in order to increase the odds of receiving more upvotes. To make the post more likely to be like topic 1, it would have to the words that are most associated with topic 1. The table above lists those words, in the order of their likelihood of appearing in topic 1. Using more words with a higher beta means the post will be more likely to be like topic 1. 
+
+All of this may be of limited use given how little variance was explained by the model. There are clearly more factors that determine the score that a reddit post receives than just the topics in the post, and it is clear that the topics in the post account for very little of the variation in scores. It would likely be worthwhile to identify what these others factors are so that they can also be used to craft a strong Reddit social media strategy for Centsy.
+
+
+
+
+
+
+
+
+

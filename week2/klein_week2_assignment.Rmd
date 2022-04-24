@@ -1,0 +1,98 @@
+---
+title: "TAD Week 2 Assignment"
+author: "Tommy Klein"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd('/Users/tklein/Desktop/Desktop_tpk/JHU_Classes/text_as_data/week2/')
+```
+
+
+
+# Part 1
+
+1. Supervised learning is machine learning with labelled data. With supervised learning, the machine learning algorithm receives training data, which is labelled. It then uses these labels to learn about the underlying correlations in the data, and can then apply the labels to un-labelled data. For example, if you had the text of books, and the genre of each book, you could use a supervised learning method to learn how to classify books into pre-defined genres. You could then apply this model to other books to label them with a genre. 
+
+  1. Supervised learning must have labelled data. The algorithm needs to have some data where the outcome of interest (e.g. sentiment, topic, etc.) has already been provided. It then uses this data to learn how to apply those outcomes to data that it hasn't yet seen. 
+  
+  2. A training data set is a labelled data set that is fed to a supervised learning algorithm. The algorithm uses the training data to learn how to the data is correlated with the outcome variable of interest. After using the training data, the algorithm can then apply the outcome variable to data that it hasn't yet seen. 
+  
+
+2. Unsupervised learning is machine learning without labelled data. Unsupervised learning algorithms classify data into different groups. Since the data is not labelled, the groups that are created are not pre-defined, and thus might not be easily interpretable. 
+
+  1. Unsupervised learning differs from supervised learning primarily in how the algorithm is trained. Supervised learning algorithms are trained on labelled data, and learn how to apply pre-defined labels to data. Unsupervised learning models are trained on unlabeled data, and learn how to group data in to undefined groups. 
+  
+  
+3. Dictionary methods map words to different labels, such as sentiment. For example the General Inquiry Database maps ~3,600 words to either a positive or negative sentiment, or the Valence Aware Dictionary for Sentiment Reasoning, which maps ~7,500 terms to different emotions and emotional strenghts. After words have been mapped, they can be used to classify the documents into different labels, such as positive or negative. 
+  
+  
+  
+# Part 2
+
+### Libraries
+```{r libs}
+
+library(tidyverse)
+library(tidytext)
+
+```
+
+
+
+### Read in CSV
+
+```{r read in csv}
+
+leg_data <- read_csv('19_20_Legislation_Title_Clean.csv')
+
+leg_data %>% 
+  head()
+
+```
+
+  
+  
+### Unnesting Text and Counting
+
+```{r unnest and count}
+
+
+leg_data %>% 
+  unnest_tokens(word, `Latest Title`) %>% 
+  nrow()
+
+leg_data %>% 
+  unnest_tokens(word, `Latest Title`) %>% 
+  select(word) %>% 
+  distinct() %>% 
+  nrow()
+
+```
+
+  
+  
+  
+There are 3548 tokens in the data, and of those, 1118 are unique. 
+  
+
+
+### Tokens in the 5th Document
+
+```{r fifth doc}
+
+leg_data[5, ] %>% 
+  unnest_tokens(word, `Latest Title`) %>% 
+  nrow()
+
+
+
+```
+
+
+There are five tokens in the fifth document. 
+  
+  

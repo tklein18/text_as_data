@@ -1,0 +1,216 @@
+---
+title: "TAD Week 9"
+author: "Tommy Klein"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+### Working Directory
+```{r wd}
+
+setwd('/Users/tklein/Desktop/Desktop_tpk/JHU_Classes/text_as_data/week9')
+
+
+```
+
+### Library
+
+```{r libs, message = F}
+
+library(tidyverse)
+library(tidytext)
+source('../functions/helper_functions.R')
+library(stats)
+library(cluster)
+library(factoextra)
+
+```
+
+
+
+
+
+```{r read data}
+
+reddit_data <- read_csv('../getting_reddit_data/updated_posts_with_text.csv')
+
+reddit_data %>% glimpse()
+
+reddit_data <- reddit_data[1:1000,]
+
+
+
+reddit_corpus <- csv_to_corpus(
+  '../getting_reddit_data/updated_posts_with_text.csv', 
+  text_col = 'body' 
+  )
+
+reddit_corpus <- reddit_corpus[1:1000]
+
+reddit_corpus %>% head()
+
+
+
+```
+
+
+
+
+
+
+
+# Training Data
+
+
+
+
+
+```{r training data}
+
+
+
+
+
+
+crypto_dfm <- corp_to_dfm(reddit_corpus, stem = T)
+
+
+
+training_dfm <- dfm_trim(
+  crypto_dfm,
+  min_termfreq = 20,
+  max_docfreq = .8,
+  docfreq_type = 'quantile',
+  termfreq_type = 'count'
+  )
+
+
+training_matrix <- as.matrix(crypto_dfm)
+
+training_matrix[is.nan(training_matrix)] = 0
+
+
+
+```
+
+
+
+
+
+
+```{r kmeans}
+
+reddit_kmeans = kmeans(
+  x = training_matrix, # All operations are done on our DFM
+  centers = 5
+)
+
+
+
+str(reddit_kmeans)
+
+reddit_data$cluster <- reddit_kmeans$cluster
+
+
+reddit_data %>% 
+  group_by(cluster) %>% 
+  mutate(rank = row_number()) %>% 
+  filter(rank < 3) %>% 
+  select(cluster, body) %>% 
+  arrange(cluster)
+
+
+reddit_data %>% 
+  pull(cluster) %>% 
+  table()
+
+reddit_data %>% 
+  group_by(cluster) %>% 
+  summarize(count = n())
+
+```
+
+
+Looks like there is one big group, one smaller group, and then three irrellevant groups with only a few documents.
+
+
+
+
+```{r}
+
+
+elbow = fviz_nbclust(training_matrix,
+                    kmeans, 
+                    method='wss',
+                    k.max = 5,
+                    verbose=TRUE)
+
+elbow
+
+```
+
+Looks like 3 or 4 might be ideal. Lets see what the silhouette method says.
+
+
+
+```{r}
+silhouette = fviz_nbclust(training_matrix,
+                    kmeans, 
+                    method='silhouette',
+                    k.max = 5,
+                    verbose=TRUE)
+
+silhouette
+```
+
+
+
+The silhouette says 2, so we'll go with that.  
+
+
+```{r}
+
+
+reddit_kmeans = kmeans(
+  x = training_matrix, # All operations are done on our DFM
+  centers = 2
+)
+
+
+
+str(reddit_kmeans)
+
+reddit_data$cluster <- reddit_kmeans$cluster
+
+
+reddit_data %>% 
+  group_by(cluster) %>% 
+  mutate(rank = row_number()) %>% 
+  filter(rank < 3) %>% 
+  select(cluster, body) %>% 
+  arrange(cluster)
+
+
+reddit_data %>% 
+  pull(cluster) %>% 
+  table()
+
+reddit_data %>% 
+  group_by(cluster) %>% 
+  summarize(count = n())
+```
+
+Well that just made one cluster, which is not very helpful. 
+
+I'm not really sure why k-means isn't returning anything helpful. All of the rows in my data have text. I'm not sure what feature engineering I could do here to get a better result. 
+
+
+
+
+
+
+

@@ -1,0 +1,180 @@
+---
+title: "TAD Week 10 Assignment"
+author: "Tommy Klein"
+date: "4/12/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Working Directory
+```{r wd}
+
+setwd('/Users/tklein/Desktop/Desktop_tpk/JHU_Classes/text_as_data/week10')
+
+
+```
+
+### Library
+
+```{r libs}
+
+library(ndjson)
+library(SentimentAnalysis)
+library(RedditExtractoR)
+library(tidyverse)
+library(topicmodels)
+library(stm)
+library(tidytext)
+source('../functions/helper_functions.R')
+library(e1071)
+library(caret)
+
+```
+
+
+
+
+# K-folds Validation
+
+The logic behind k-folds validation is that, in the real world, when you apply your model, you will be applying it using data the model has never seen, so to get an accurate idea of how the model will perform you need to test it on data that is has never seen. What k-folds validation does that is different than just a training and test set is that it creates many different training and test sets (a number of sets equal to k). The result is that you have many different test results with which to judge the model. This is preferable to just having one training and test set, because there is a chance that either the test or training set is not reflective of how the model will perform, but with many different training and test sets you should have a better understanding of model performance, and how stable it is. 
+
+
+
+
+# Reading in data
+
+I collected thousands of reddit posts from multiple different sub-reddits: r/Bitcoin, r/Ethereum, r/CryptoCurrency, r/BitcoinBegginers, and r/Coinbase. I'm going to use a naive-bayes model to see if I can predict which sub-reddit a post was posted in based on the text used in the post. 
+
+
+```{r read data}
+
+reddit_data <- read_csv('../getting_reddit_data/updated_posts_with_text.csv')
+
+reddit_data %>% glimpse()
+
+reddit_corpus <- csv_to_corpus(
+  '../getting_reddit_data/updated_posts_with_text.csv', 
+  text_col = 'body' 
+  )
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+# Training Model
+
+
+```{r nb}
+
+
+reddit_data$subreddit = factor(reddit_data$subreddit)
+
+reddit_dfm <- corp_to_dfm(reddit_corpus)
+
+reddit_dfm_matrix <- as.matrix(reddit_dfm)
+
+folds_10 = createFolds(reddit_data$subreddit, k = 10)
+
+results = lapply(folds_10, function(x){ # Run lapply on the folds list using a function
+  test_subset = as.vector(x)  # Convert to vector. Not required but sometimes leads to errors if not done
+  train_matrix = reddit_dfm_matrix[-test_subset,] # Select everything within our somewhat random sample
+  train_labels = reddit_data[-test_subset,'subreddit'] %>% pull()
+  test_matrix = reddit_dfm_matrix[test_subset,] # Select everything not within the sample
+  test_labels = reddit_data[test_subset, 'subreddit'] %>% pull()
+
+  # Create a model
+  nb_mod <- e1071::naiveBayes(
+  x=train_matrix,
+  y=train_labels,
+  method='class'
+)
+
+  # Run predictions
+  pred <- predict(nb_mod, test_matrix)
+  
+  # Look at how well out classifier is doing using the Caret package
+  confusion_matrix = caret::confusionMatrix(data=pred, #Enter your predictions
+                                     reference = factor(test_labels), # The true labels
+                                     mode = 'prec_recall') # Mode has to be precision and recall
+  
+  # Return results where we can compare Accuracy from each k-fold
+  return(confusion_matrix$overall)  
+})
+
+
+print(results)
+
+```
+
+
+
+Not very good results! I think its pretty similar to last time. 
+
+
+
+
+
+
+# Training Model
+
+
+```{r nb}
+
+
+reddit_data$subreddit = factor(reddit_data$subreddit)
+
+reddit_dfm <- corp_to_dfm(reddit_corpus)
+
+reddit_dfm_matrix <- as.matrix(reddit_dfm)
+
+folds_10 = createFolds(reddit_data$subreddit, k = 10)
+
+results = lapply(folds_10, function(x){ # Run lapply on the folds list using a function
+  test_subset = as.vector(x)  # Convert to vector. Not required but sometimes leads to errors if not done
+  train_matrix = reddit_dfm_matrix[-test_subset,] # Select everything within our somewhat random sample
+  train_labels = reddit_data[-test_subset,'subreddit'] %>% pull()
+  test_matrix = reddit_dfm_matrix[test_subset,] # Select everything not within the sample
+  test_labels = reddit_data[test_subset, 'subreddit'] %>% pull()
+
+  # Create a model
+  svm_mod <- e1071::svm(
+  x=train_matrix,
+  y=train_labels
+)
+
+  # Run predictions
+  pred <- predict(nb_mod, test_matrix)
+  
+  # Look at how well out classifier is doing using the Caret package
+  confusion_matrix = caret::confusionMatrix(data=pred, #Enter your predictions
+                                     reference = factor(test_labels), # The true labels
+                                     mode = 'prec_recall') # Mode has to be precision and recall
+  
+  # Return results where we can compare Accuracy from each k-fold
+  return(confusion_matrix$overall)  
+})
+
+
+print(results)
+
+```
+
+
+
+
+
+
+

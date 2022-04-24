@@ -1,0 +1,162 @@
+---
+title: "TAD Week 8 Assignment"
+author: "Tommy Klein"
+date: "3/30/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Working Directory
+```{r wd}
+
+setwd('/Users/tklein/Desktop/Desktop_tpk/JHU_Classes/text_as_data/week8')
+
+
+```
+
+### Library
+
+```{r libs}
+
+library(ndjson)
+library(SentimentAnalysis)
+library(RedditExtractoR)
+library(tidyverse)
+library(topicmodels)
+library(stm)
+library(tidytext)
+source('../functions/helper_functions.R')
+library(e1071)
+
+```
+
+
+
+
+# Reading in data
+
+I collected thousands of reddit posts from multiple different sub-reddits: r/Bitcoin, r/Ethereum, r/CryptoCurrency, r/BitcoinBegginers, and r/Coinbase. I'm going to use a naive-bayes model to see if I can predict which sub-reddit a post was posted in based on the text used in the post. 
+
+
+```{r read data}
+
+reddit_data <- read_csv('../getting_reddit_data/psaw_crypto_posts_with_body.csv')
+
+reddit_data %>% glimpse()
+
+reddit_corpus <- csv_to_corpus(
+  '../getting_reddit_data/psaw_crypto_posts_with_body.csv', 
+  text_col = 'body' 
+  )
+
+
+```
+
+
+
+
+
+
+# Training Data
+
+
+Now I want to subset my data to use a portion of it for training. 
+
+
+```{r training data}
+
+set.seed(42)
+
+rand_sample <- sample(x = 16274, size = 5000)
+
+
+training_df <- reddit_data[rand_sample, ]
+
+training_corpus <- reddit_corpus[rand_sample,]
+
+training_dfm <- corp_to_dfm(training_corpus)
+
+training_matrix <- as.matrix(training_dfm)
+
+labels = training_df$subreddit %>% as.factor()
+
+levels(labels)
+
+
+training_df %>% 
+  group_by(subreddit) %>% 
+  summarize(count = n())
+
+
+```
+
+
+
+
+
+
+# Training Model
+
+
+```{r nb}
+
+nb = e1071::naiveBayes(
+  x=training_matrix,
+  y=labels,
+  method='class'
+)
+
+```
+
+
+
+
+# Predictions
+
+
+```{r predictions}
+
+nb_prediction = predict(nb, training_matrix)
+
+```
+
+
+
+
+# Results 
+
+```{r}
+
+results = data.frame(
+  Predictions = nb_prediction,
+  Actuals = labels
+)
+
+results %>% head(100)
+
+
+results %>% 
+  mutate(correct = Predictions == Actuals) %>%
+  group_by(Predictions, Actuals, correct) %>% 
+  summarize(count = n()) %>% 
+  pivot_wider(names_from = correct, values_from = count, values_fill = 0)
+```
+
+
+
+
+
+The model did not perform very well! Looks like it predicted the most popular class (BitcoinBeginners) way more than all the other classes. That makes sense from a mathematical perspective, but is not great from a modeling perspective. 
+
+
+
+
+
+
+
+
+
+

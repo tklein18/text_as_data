@@ -1,0 +1,266 @@
+---
+title: "TAD Week 4 Assignment"
+author: "Tommy Klein"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Working Directory
+```{r wd}
+
+setwd('/Users/tklein/Desktop/Desktop_tpk/JHU_Classes/text_as_data/week4')
+
+
+```
+
+
+
+### Libraries
+```{r libs}
+
+library(tidyverse)
+library(quanteda)
+library(readtext)
+library(jsonlite)
+library(nytimes)
+library(httr)
+
+```
+
+
+### Functions
+
+Loading some functions I wrote that I might use - I'll show the functions at the end of this document in the appendix. 
+
+```{r functions}
+
+source('../functions/helper_functions.R')
+
+
+```
+
+
+
+### Research Question
+
+The New York Times is the paper of record in America, and because of this its content can be viewed as a microcosm of American thought and opinions. We can use the New York Times data to get an understanding of what topics Americans care about, what specific things they care about regarding that topic, and the sentiment towards that topic. For example, you could query the New York Times articles to see what articles had been written about, or associated with, the city you live in. You could then analyze the text to understand any common themes are sentiment in the articles, which would give you an idea of how the rest of America views your city. This data could then be used by city leaders to inform city development and branding, to ensure the city is successful in the future.This method is very interesting because unlike conducting a survey we can easily do this analysis for historical time periods, it is easily reproducible, and it is cheap. 
+
+
+
+
+### Collecting Article Data
+
+First, I will read in my api key which I saved in a file in another folder.
+
+```{r nyt key}
+
+my_nyt_key <- read.csv('../resources/nyt_api_key', header = F, stringsAsFactors = F)[[1]]
+
+
+```
+
+
+Now I will search for articles that are tagged as being about or from Portland, Oregon. 
+
+```{r city search}
+
+portland_articles <- nyt_search(
+  'portland oregon',
+  n = 100, 
+  end_date = '20220101',
+  apikey = my_nyt_key
+)
+
+
+nyt_df = as.data.frame(portland_articles)
+
+glimpse(nyt_df)
+
+
+## have to wait for about 6 seconds
+## to not run afoul of NYT API call limits
+
+Sys.sleep(30)
+
+portland_articles_pre2000 <- nyt_search(
+  'portland oregon',
+  n = 100, 
+  end_date = '19991231',
+  apikey = my_nyt_key
+)
+
+
+nyt_df_pre2000 = as.data.frame(portland_articles_pre2000)
+
+glimpse(nyt_df_pre2000)
+
+
+
+```
+
+
+It looks like in both queries I returned 100 results. That makes sense, as that is the max number of results (specified by `n = 100`).
+
+
+
+```{r reading headlines}
+
+
+nyt_df$headline[1:20]
+
+
+
+```
+
+
+The headlines don't really seem to be about Portland. Also, it looks like its just the same 10 articles repeated over again. 
+
+
+
+
+### Semantics
+
+
+
+```{r semantic httr}
+
+semantic_url <- paste0(
+  'http://api.nytimes.com/svc/semantic/v2/concept/name/nytd_geo/Oregon?fields=all&api-key=', 
+  my_nyt_key
+  )
+
+
+r <- GET(semantic_url)
+
+Sys.sleep(10)
+
+res = content(r, 'parsed')
+
+res$results[[1]]$geocodes
+
+```
+
+The semantic API returns info about how the NYT defines the term, some information about the term, and some examples of how its used. For example, I searched for Oregon, and it returned articles where Oregon was mentioned, some geographic info about Oregon, and some links to further information about Oregon. This is different than the article API, which returns articles and some meta-data about those articles. 
+
+
+
+### Books API
+
+```{r books}
+
+
+
+book_url <- paste0(
+  'https://api.nytimes.com/svc/books/v3/reviews.json?author=Celeste+Ng&api-key=', 
+  my_nyt_key
+  )
+
+
+book_api_results <- GET(book_url)
+
+Sys.sleep(10)
+
+book_results = content(book_api_results, 'parsed')
+
+
+
+book_data <- tibble()
+for(i in 1:length(book_results$results)){
+  
+  temp_data <- tibble(
+    'title' = book_results$results[[i]]$book_title,
+    'summary' = book_results$results[[i]]$summary
+    )  
+  
+  book_data <- bind_rows(book_data, temp_data)
+  
+}
+
+
+
+book_corpus <- quanteda::corpus(book_data, docid_field = 'title', text_field = 'summary')
+
+
+book_corpus
+
+
+corp_to_dfm(book_corpus)
+
+```
+
+
+
+
+
+### Most Popular API
+
+
+```{r most popular}
+
+
+
+pop_url <- paste0(
+  'https://api.nytimes.com/svc/mostpopular/v2/viewed/30.json?api-key=', 
+  my_nyt_key
+  )
+
+
+pop_api_results <- GET(pop_url)
+
+Sys.sleep(10)
+
+pop_results = content(pop_api_results, 'parsed')
+
+
+pop_data <- tibble()
+for(i in 1:length(pop_results$results)){
+  
+  temp_data <- tibble(
+    'id' = pop_results$results[[i]]$id %>% as.character(),
+    'abstract' = pop_results$results[[i]]$abstract
+    )  
+  
+  pop_data <- bind_rows(pop_data, temp_data)
+  
+}
+
+
+pop_corpus <- quanteda::corpus(pop_data, docid_field = 'id', text_field = 'abstract')
+
+
+pop_corpus
+
+
+corp_to_dfm(pop_corpus)
+
+
+
+```
+
+
+
+
+
+
+### Appendix
+
+
+```{r show funcs}
+
+# csv to corpus
+csv_to_corpus
+
+
+# corpus to dfm
+corp_to_dfm
+
+```
+
+
+
+
+
+
